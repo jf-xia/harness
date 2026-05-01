@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import type { Tool, ToolContext, ToolResult } from '../types.js';
+import { log } from '../logger.js';
 
 export const ReadFileTool: Tool = {
   definition: {
@@ -22,6 +23,8 @@ export const ReadFileTool: Tool = {
     const offset = (input.offset as number) || 0;
     const limit = input.limit as number | undefined;
 
+    log.step('READ_FILE', `Reading: ${path}`, { offset, limit });
+
     try {
       const content = await fs.readFile(path, 'utf-8');
       const lines = content.split('\n');
@@ -30,8 +33,10 @@ export const ReadFileTool: Tool = {
       const selected = lines.slice(start, end);
 
       const numbered = selected.map((line, i) => `${start + i + 1}\t${line}`).join('\n');
+      log.success('READ_FILE', `Read ${selected.length} lines (total ${lines.length})`);
       return { output: numbered };
     } catch (err: any) {
+      log.error('READ_FILE', `Failed: ${err.message}`);
       return { output: '', error: `Failed to read file: ${err.message}` };
     }
   },

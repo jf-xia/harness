@@ -10,6 +10,7 @@ import { Header } from './components/Header.js';
 import { MessageList } from './components/MessageList.js';
 import { PromptInput } from './components/PromptInput.js';
 import { PermissionDialog } from './components/PermissionDialog.js';
+import { log } from './logger.js';
 
 const DEFAULT_SYSTEM_PROMPT = `You are a helpful coding assistant running in a terminal CLI called "Harness".
 You have access to tools for reading/writing files and executing shell commands.
@@ -35,12 +36,14 @@ export function App() {
   const agentRef = useRef<AgentLoop | null>(null);
 
   const agent = useMemo(() => {
+    log.group('APP', 'Creating AgentLoop');
     const a = new AgentLoop({
-      model: 'claude-sonnet-4-20250514',
+      model: 'mimo-v2.5',
       systemPrompt: DEFAULT_SYSTEM_PROMPT,
       maxTokens: 4096,
       settingsPath: '.harness/settings.json',
       onEvent: (event: AgentEvent) => {
+        log.info('EVENT', `→ ${event.type}`, event.type === 'text' ? event.content?.slice(0, 60) : undefined);
         switch (event.type) {
           case 'text_delta':
             setStreaming(prev => prev + event.content);
@@ -50,6 +53,7 @@ export function App() {
             setMessages(prev => [...prev, { role: 'assistant', content: event.content }]);
             break;
           case 'tool_start':
+            log.step('APP', `Tool starting: ${event.name}`);
             setMessages(prev => [...prev, {
               role: 'tool',
               content: `Running ${event.name}...`,
@@ -57,6 +61,7 @@ export function App() {
             }]);
             break;
           case 'tool_result':
+            log.step('APP', `Tool result for ${event.name}: ${event.isError ? 'ERROR' : 'OK'}`);
             setMessages(prev => {
               // 更新最后的 tool 消息
               const updated = [...prev];
@@ -73,13 +78,16 @@ export function App() {
             });
             break;
           case 'error':
+            log.error('APP', `Agent error: ${event.error}`);
             setMessages(prev => [...prev, { role: 'system', content: `Error: ${event.error}` }]);
             break;
           case 'done':
+            log.success('APP', 'Agent done');
             break;
         }
       },
       onPermissionRequest: (toolName, scope, resource) => {
+        log.warn('APP', `Permission requested: ${toolName} (${scope}) for "${resource}"`);
         return new Promise<boolean>((resolve) => {
           setPendingPermission({ toolName, resource, resolve });
         });
@@ -87,12 +95,14 @@ export function App() {
     });
 
     // 注册工具
+    log.step('APP', 'Registering tools...');
     a.registry.register(ReadFileTool);
     a.registry.register(BashTool);
     a.registry.register(WriteFileTool);
     a.registry.register(GlobTool);
     agentRef.current = a;
 
+    log.groupEnd();
     return a;
   }, []);
 
@@ -100,16 +110,19 @@ export function App() {
     if (!value.trim()) return;
 
     if (value === '/quit' || value === '/exit') {
+      log.step('APP', 'User quit');
       exit();
       return;
     }
 
     if (value === '/clear') {
+      log.step('APP', 'User cleared chat');
       setMessages([{ role: 'assistant', content: 'Chat cleared.' }]);
       agentRef.current?.contextManager.reset();
       return;
     }
 
+    log.group('APP', `User submitted: "${value.slice(0, 60)}${value.length > 60 ? '...' : ''}"`);
     setMessages(prev => [...prev, { role: 'user', content: value }]);
     setIsProcessing(true);
     setStreaming('');
@@ -117,17 +130,22 @@ export function App() {
     try {
       await agent.run(value);
     } catch (err: any) {
+      log.error('APP', `Fatal error: ${err.message}`);
       setMessages(prev => [...prev, { role: 'system', content: `Fatal: ${err.message}` }]);
     } finally {
       setIsProcessing(false);
       setStreaming('');
+      log.groupEnd();
+      log.info('APP', 'Ready for next input');
     }
   }, [agent, exit]);
 
   const handlePermissionDecision = useCallback((granted: boolean, save: boolean) => {
     if (!pendingPermission) return;
 
+    log.step('APP', `Permission decision: ${granted ? 'ALLOW' : 'DENY'}, save=${save}`);
     if (save) {
+      log.info('APP', 'Persisting permission rule...');
       // 导入 permission manager 并保存规则
       const { PermissionManager } = require('./permissions/manager.js');
       const pm = new PermissionManager('.harness/settings.json');

@@ -1,5 +1,6 @@
 import { execaCommand } from 'execa';
 import type { Tool, ToolContext, ToolResult } from '../types.js';
+import { log } from '../logger.js';
 
 export const BashTool: Tool = {
   definition: {
@@ -20,6 +21,8 @@ export const BashTool: Tool = {
     const command = input.command as string;
     const timeout = (input.timeout as number) || 30000;
 
+    log.step('BASH', `Executing: "${command}"`, { timeout, cwd: context.workingDirectory });
+
     try {
       const result = await execaCommand(command, {
         timeout,
@@ -35,15 +38,26 @@ export const BashTool: Tool = {
         .filter(Boolean)
         .join('\n');
 
+      // exitCode 为 undefined 说明进程被信号终止
+      if (result.exitCode === undefined) {
+        const sig = result.signal || 'unknown';
+        log.warn('BASH', `Process killed by signal: ${sig}`);
+        return { output, error: `Process killed by signal ${sig}` };
+      }
+
       if (result.exitCode !== 0) {
+        log.warn('BASH', `Exit code ${result.exitCode}`);
         return { output, error: `Command exited with code ${result.exitCode}` };
       }
 
+      log.success('BASH', `Command succeeded (${output.length} chars output)`);
       return { output: output || '(no output)' };
     } catch (err: any) {
       if (err.timedOut) {
+        log.error('BASH', `Command timed out after ${timeout}ms`);
         return { output: '', error: `Command timed out after ${timeout}ms` };
       }
+      log.error('BASH', `Execution failed: ${err.message}`);
       return { output: '', error: `Failed to execute command: ${err.message}` };
     }
   },
