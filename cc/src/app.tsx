@@ -6,6 +6,7 @@ import { ReadFileTool } from "./tools/read-file.js";
 import { BashTool } from "./tools/bash.js";
 import { WriteFileTool } from "./tools/write-file.js";
 import { GlobTool } from "./tools/glob.js";
+import { AgentBrowserTool } from "./tools/agent-browser.js";
 import { Header } from "./components/Header.js";
 import { MessageList } from "./components/MessageList.js";
 import { PromptInput } from "./components/PromptInput.js";
@@ -194,6 +195,7 @@ export function App() {
     a.registry.register(BashTool);
     a.registry.register(WriteFileTool);
     a.registry.register(GlobTool);
+    a.registry.register(AgentBrowserTool);
     agentRef.current = a;
 
     log.groupEnd();

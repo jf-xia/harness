@@ -46,8 +46,9 @@ export const BashTool: Tool = {
       }
 
       if (result.exitCode !== 0) {
+        // 非零退出码不一定是错误（如 which 找不到程序），保留输出让 Agent 自行判断
         log.warn('BASH', `Exit code ${result.exitCode}`);
-        return { output, error: `Command exited with code ${result.exitCode}` };
+        return { output: output || `(exit code ${result.exitCode})` };
       }
 
       log.success('BASH', `Command succeeded (${output.length} chars output)`);
