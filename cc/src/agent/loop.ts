@@ -79,6 +79,10 @@ export class AgentLoop {
       iteration++;
       log.step('AGENT', `--- Loop iteration #${iteration} ---`);
 
+      const messages = this.context.getMessages();
+      const toolNames = this.tools.getAll().map(t => t.definition.name);
+      this.onEvent({ type: 'api_call', model: this.model, messageCount: messages.length, toolNames });
+
       const response = await this.callAPI();
 
       if (response.type === 'error') {
@@ -91,6 +95,7 @@ export class AgentLoop {
       const { content, stopReason } = response;
       log.data('AGENT', 'stopReason', stopReason);
       log.data('AGENT', 'content blocks', content.map(b => b.type));
+      this.onEvent({ type: 'api_response', stopReason, blockTypes: content.map(b => b.type), iteration });
 
       // 发送文本内容
       for (const block of content) {

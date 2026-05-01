@@ -2,13 +2,20 @@ import type Anthropic from '@anthropic-ai/sdk';
 
 // ── Messages ──────────────────────────────────────────────
 
-export type MessageRole = 'user' | 'assistant' | 'tool' | 'system';
+export type MessageRole = 'user' | 'assistant' | 'tool' | 'system' | 'debug';
 
 export interface DisplayMessage {
   role: MessageRole;
   content: string;
   toolName?: string;
   isError?: boolean;
+  debugData?: {
+    label: string;
+    file?: string;
+    func?: string;
+    line?: number;
+    detail?: unknown;
+  };
 }
 
 // ── Tools ─────────────────────────────────────────────────
@@ -50,6 +57,8 @@ export type AgentEvent =
   | { type: 'tool_start'; name: string; input: Record<string, unknown> }
   | { type: 'tool_result'; name: string; output: string; isError: boolean }
   | { type: 'thinking' }
+  | { type: 'api_call'; model: string; messageCount: number; toolNames: string[] }
+  | { type: 'api_response'; stopReason: string | null; blockTypes: string[]; iteration: number }
   | { type: 'error'; error: string }
   | { type: 'done' };
 
